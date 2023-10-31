@@ -1,0 +1,17 @@
+[package]
+name = "sss-wrap"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+base64 = "0.21.5"
+galois_2p8 = "0.1.2"
+hex = { version = "0.4.3", features = ["serde"] }
+lazy_static = "1.4.0"
+rand = "0.8.5"
+serde = { version = "1.0.190", features = ["derive"] }
+sss-rs = "0.12.0"
+

@@ -10,6 +10,7 @@ use crate::polynomial::galois::{Coeff, GaloisPolynomial};
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Share {
     x: u8,
+    #[serde(with = "hex::serde")]
     ys: Vec<u8>,
 }
 

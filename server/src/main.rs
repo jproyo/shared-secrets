@@ -1,13 +1,12 @@
-use shared_secret_server::secret::secret::Share;
 use slog::{info, slog_o, warn, Drain};
+use sss_wrap::secret::secret::Share;
 
-use actix_web::{get, put, web, App, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpServer, Responder};
 use async_trait::async_trait;
 use bincode::{deserialize, serialize};
 use riteraft::{Mailbox, Raft, Result, Store};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
@@ -23,7 +22,7 @@ struct Options {
     web_server: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Message {
     Insert { key: ClientId, value: Share },
 }
@@ -67,7 +66,6 @@ impl Store for HashStore {
             Message::Insert { key, value } => {
                 let mut db = self.0.write().unwrap();
                 db.insert(key.clone(), value.clone());
-                log::info!("inserted: ({:?}, {:?})", key, value);
                 serialize(&value).unwrap()
             }
         };
@@ -89,11 +87,16 @@ impl Store for HashStore {
 struct AppContext {
     mailbox: Arc<Mailbox>,
     store: HashStore,
+    logger: slog::Logger,
 }
 
 impl AppContext {
-    fn new(mailbox: Arc<Mailbox>, store: HashStore) -> Self {
-        Self { mailbox, store }
+    fn new(mailbox: Arc<Mailbox>, store: HashStore, logger: slog::Logger) -> Self {
+        Self {
+            mailbox,
+            store,
+            logger,
+        }
     }
 
     fn mailbox(&self) -> Arc<Mailbox> {
@@ -103,14 +106,22 @@ impl AppContext {
     fn store(&self) -> HashStore {
         self.store.clone()
     }
+
+    fn logger(&self) -> slog::Logger {
+        self.logger.clone()
+    }
 }
 
-#[put("/{client_id}/secret")]
+#[post("/{client_id}/secret")]
 async fn create_share(
     data: web::Data<AppContext>,
     path: web::Path<ClientId>,
     share: web::Json<Share>,
 ) -> impl Responder {
+    info!(
+        data.logger(),
+        "Creating new share from client {:?} with value {:?}", path, share
+    );
     let client_id = path.into_inner();
     let message = Message::Insert {
         key: client_id,
@@ -118,7 +129,8 @@ async fn create_share(
     };
     let message = serialize(&message).unwrap();
     let result = data.mailbox().send(message).await.unwrap();
-    let result: String = deserialize(&result).unwrap();
+    info!(data.logger(), "Result: {:?}", result);
+    let result: Share = deserialize(&result).unwrap();
     format!("{:?}", result)
 }
 
@@ -164,11 +176,10 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    let logger_server = logger.clone();
+
     let server = HttpServer::new(move || {
-        let app_context = AppContext {
-            mailbox: mailbox.clone(),
-            store: store.clone(),
-        };
+        let app_context = AppContext::new(mailbox.clone(), store.clone(), logger_server.clone());
         App::new()
             .app_data(web::Data::new(app_context))
             .service(create_share)
