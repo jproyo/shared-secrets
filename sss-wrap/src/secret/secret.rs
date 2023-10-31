@@ -61,6 +61,10 @@ impl Share {
     ) -> RenewableShare {
         RenewableShare::new(self, shares_required, shares_to_create, sec_len)
     }
+
+    pub fn id(&self) -> u8 {
+        self.x
+    }
 }
 
 impl RenewableShare {
@@ -85,6 +89,16 @@ impl RenewableShare {
             .ys
             .iter_mut()
             .for_each(|y| *y = *(Coeff(*y) + Coeff(self.poly.get_y_value(share.x))));
+    }
+
+    pub fn renew_with_share(new_share: &Share, share: &Share) -> Share {
+        let new_ys = share
+            .ys
+            .iter()
+            .zip(new_share.ys.iter())
+            .map(|(y, new_y)| *(Coeff(*y) + Coeff(*new_y)))
+            .collect::<Vec<_>>();
+        Share::new(share.x, new_ys)
     }
 }
 

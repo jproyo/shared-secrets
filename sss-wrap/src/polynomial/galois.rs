@@ -87,4 +87,3 @@ impl GaloisPolynomial {
             .fold(Coeff(0u8), |acc, co| (acc * x_val_coeff) + *co)
     }
 }
-

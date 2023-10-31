@@ -1,5 +1,5 @@
 use slog::{info, slog_o, warn, Drain};
-use sss_wrap::secret::secret::Share;
+use sss_wrap::secret::secret::{RenewableShare, Share};
 
 use actix_web::{get, post, web, App, HttpServer, Responder};
 use async_trait::async_trait;
@@ -8,6 +8,7 @@ use riteraft::{Mailbox, Raft, Result, Store};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
 use tokio::signal::unix::{signal, SignalKind};
@@ -20,15 +21,33 @@ struct Options {
     peer_addr: Option<String>,
     #[structopt(long)]
     web_server: String,
+    #[structopt(long)]
+    node_id: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Message {
-    Insert { key: ClientId, value: Share },
+enum Message {
+    Insert {
+        client_id: ClientId,
+        value: Share,
+    },
+    StartRefresh {
+        node_id: NodeId,
+    },
+    Refresh {
+        client_id: ClientId,
+        new_share: Share,
+    },
+    FinishRefresh {
+        node_id: NodeId,
+    },
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub struct ClientId(u64);
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Copy)]
+struct ClientId(u64);
+
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Copy)]
+struct NodeId(u8);
 
 impl Deref for ClientId {
     type Target = u64;
@@ -38,23 +57,31 @@ impl Deref for ClientId {
     }
 }
 
-#[derive(Clone)]
-struct HashStore(Arc<RwLock<HashMap<ClientId, Share>>>);
-
-impl Deref for HashStore {
-    type Target = Arc<RwLock<HashMap<ClientId, Share>>>;
+impl Deref for NodeId {
+    type Target = u8;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
+#[derive(Clone)]
+struct HashStore {
+    node_id: NodeId,
+    storage: Arc<RwLock<HashMap<ClientId, Share>>>,
+    refreshing: Arc<AtomicBool>,
+}
+
 impl HashStore {
-    fn new() -> Self {
-        Self(Arc::new(RwLock::new(HashMap::new())))
+    fn new(node_id: NodeId) -> Self {
+        Self {
+            storage: Arc::new(RwLock::new(HashMap::new())),
+            node_id,
+            refreshing: Arc::new(AtomicBool::new(false)),
+        }
     }
     fn get(&self, id: ClientId) -> Option<Share> {
-        self.read().unwrap().get(&id).cloned()
+        self.storage.read().unwrap().get(&id).cloned()
     }
 }
 
@@ -63,22 +90,58 @@ impl Store for HashStore {
     async fn apply(&mut self, message: &[u8]) -> Result<Vec<u8>> {
         let message: Message = deserialize(message).unwrap();
         let message: Vec<u8> = match message {
-            Message::Insert { key, value } => {
-                let mut db = self.0.write().unwrap();
-                db.insert(key.clone(), value.clone());
-                serialize(&value).unwrap()
+            Message::Insert { client_id, value } => {
+                if value.id() == *self.node_id.deref() {
+                    let mut db = self.storage.write().unwrap();
+                    db.insert(client_id.clone(), value.clone());
+                    serialize(&value).unwrap()
+                } else {
+                    serialize(&self.get(client_id).unwrap()).unwrap()
+                }
+            }
+            Message::StartRefresh { node_id } => {
+                if node_id != self.node_id {
+                    self.refreshing
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                serialize(&Message::StartRefresh { node_id }).unwrap()
+            }
+            Message::Refresh {
+                client_id,
+                new_share,
+            } => {
+                if new_share.id() == *self.node_id.deref() {
+                    let db_read = self.storage.read().unwrap();
+                    let old_share = db_read.get(&client_id).unwrap();
+                    let new_share_to_store =
+                        RenewableShare::renew_with_share(&new_share, &old_share);
+                    let mut db = self.storage.write().unwrap();
+                    db.insert(client_id, new_share_to_store);
+                }
+                serialize(&Message::Refresh {
+                    client_id,
+                    new_share: new_share.clone(),
+                })
+                .unwrap()
+            }
+            Message::FinishRefresh { node_id } => {
+                if node_id != self.node_id {
+                    self.refreshing
+                        .store(false, std::sync::atomic::Ordering::Relaxed);
+                }
+                serialize(&Message::FinishRefresh { node_id }).unwrap()
             }
         };
         Ok(message)
     }
 
     async fn snapshot(&self) -> Result<Vec<u8>> {
-        Ok(serialize(&self.0.read().unwrap().clone())?)
+        Ok(serialize(&self.storage.read().unwrap().clone())?)
     }
 
     async fn restore(&mut self, snapshot: &[u8]) -> Result<()> {
         let new: HashMap<ClientId, Share> = deserialize(snapshot).unwrap();
-        let mut db = self.0.write().unwrap();
+        let mut db = self.storage.write().unwrap();
         let _ = std::mem::replace(&mut *db, new);
         Ok(())
     }
@@ -88,14 +151,16 @@ struct AppContext {
     mailbox: Arc<Mailbox>,
     store: HashStore,
     logger: slog::Logger,
+    node_id: NodeId,
 }
 
 impl AppContext {
-    fn new(mailbox: Arc<Mailbox>, store: HashStore, logger: slog::Logger) -> Self {
+    fn new(mailbox: Arc<Mailbox>, store: HashStore, logger: slog::Logger, node_id: u8) -> Self {
         Self {
             mailbox,
             store,
             logger,
+            node_id: NodeId(node_id),
         }
     }
 
@@ -124,7 +189,7 @@ async fn create_share(
     );
     let client_id = path.into_inner();
     let message = Message::Insert {
-        key: client_id,
+        client_id,
         value: share.deref().clone(),
     };
     let message = serialize(&message).unwrap();
@@ -159,7 +224,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let _log_guard = slog_stdlog::init().unwrap();
 
     let options = Options::from_args();
-    let store = HashStore::new();
+    let store = HashStore::new(NodeId(options.node_id));
 
     let raft = Raft::new(options.raft_addr.clone(), store.clone(), logger.clone());
     let mailbox = Arc::new(raft.mailbox());
@@ -179,7 +244,12 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let logger_server = logger.clone();
 
     let server = HttpServer::new(move || {
-        let app_context = AppContext::new(mailbox.clone(), store.clone(), logger_server.clone());
+        let app_context = AppContext::new(
+            mailbox.clone(),
+            store.clone(),
+            logger_server.clone(),
+            options.node_id,
+        );
         App::new()
             .app_data(web::Data::new(app_context))
             .service(create_share)
@@ -230,6 +300,10 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     "#;
 
     info!(logger, "{}", str_log_wellcome);
+    info!(
+        logger,
+        "\n\n ---- Starting Node Id {} ----- \n", options.node_id
+    );
     info!(
         logger,
         "\n\n ---- Starting API Server on {} ----- \n", options.web_server
