@@ -1,5 +1,5 @@
 use shared_secret_server::secret::secret::Share;
-use slog::{slog_o, Drain};
+use slog::{info, slog_o, warn, Drain};
 
 use actix_web::{get, put, web, App, HttpServer, Responder};
 use async_trait::async_trait;
@@ -7,6 +7,7 @@ use bincode::{deserialize, serialize};
 use riteraft::{Mailbox, Raft, Result, Store};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
@@ -140,7 +141,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let drain = slog_async::Async::new(drain).build().fuse();
-    let logger = slog::Logger::root(drain, slog_o!("version" => env!("CARGO_PKG_VERSION")));
+    let logger = slog::Logger::root(drain, slog_o!());
 
     // converts log to slog
     let _log_guard = slog_stdlog::init().unwrap();
@@ -148,16 +149,16 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let options = Options::from_args();
     let store = HashStore::new();
 
-    let raft = Raft::new(options.raft_addr, store.clone(), logger.clone());
+    let raft = Raft::new(options.raft_addr.clone(), store.clone(), logger.clone());
     let mailbox = Arc::new(raft.mailbox());
     let (raft_handle, mailbox) = match options.peer_addr {
         Some(addr) => {
-            log::info!("running in follower mode");
+            info!(logger, "running in follower mode");
             let handle = tokio::spawn(raft.join(addr));
             (handle, mailbox)
         }
         None => {
-            log::info!("running in leader mode");
+            info!(logger, "running in leader mode");
             let handle = tokio::spawn(raft.lead());
             (handle, mailbox)
         }
@@ -174,7 +175,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             .service(get_share)
             .service(leave)
     })
-    .bind(options.web_server)
+    .bind(options.web_server.clone())
     .unwrap()
     .run();
 
@@ -184,14 +185,18 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let raft_abortable = raft_handle.abort_handle();
 
+    let log_spawn = logger.clone();
     let http_server_shutdown = tokio::spawn(async move {
         let mut sig_int = signal(SignalKind::interrupt()).unwrap();
         let mut sig_term = signal(SignalKind::terminate()).unwrap();
         let mut sig_hup = signal(SignalKind::hangup()).unwrap();
         let cancel = async {
-            eprintln!("Shutdown was requested.\nShutting down http server....");
+            warn!(
+                log_spawn,
+                "Shutdown was requested.\nShutting down http server...."
+            );
             server_handle.stop(true).await;
-            eprintln!("Shutting down Consensus Module....");
+            warn!(log_spawn, "Shutting down Consensus Module....");
             raft_abortable.abort();
         };
         tokio::select! {
@@ -200,6 +205,28 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             _ = sig_hup.recv() => cancel.await,
         }
     });
+
+    let str_log_wellcome = r#"
+        ------------------------------------------------------------------------
+        |                                                                      |
+        |  Welcome to the Distributed Secret Sharing Service!                  |
+        |                                                                      |
+        |  The service is implemented using the Raft consensus algorithm.      |
+        |                                                                      |
+        |  Interactions with Clients are accessible via a REST API             |
+        |                                                                      |
+        ------------------------------------------------------------------------
+    "#;
+
+    info!(logger, "{}", str_log_wellcome);
+    info!(
+        logger,
+        "\n\n ---- Starting API Server on {} ----- \n", options.web_server
+    );
+    info!(
+        logger,
+        "\n\n ---- Starting Consensus Server on {} ----- \n", options.raft_addr
+    );
 
     let result = tokio::try_join!(raft_handle, http_server, http_server_shutdown)?;
     let (raft_result, http_server_result, _) = result;
