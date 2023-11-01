@@ -7,6 +7,34 @@ use serde::{Deserialize, Serialize};
 
 use crate::polynomial::galois::{Coeff, GaloisPolynomial};
 
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Debug)]
+pub struct Metadata {
+    pub shares_required: u8,
+    pub shares_to_create: u8,
+    pub sec_len: usize,
+}
+impl Metadata {
+    pub fn new(shares_required: u8, shares_to_create: u8, sec_len: usize) -> Metadata {
+        Metadata {
+            shares_required,
+            shares_to_create,
+            sec_len,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Debug)]
+pub struct ShareMeta {
+    pub share: Share,
+    pub meta: Metadata,
+}
+
+impl ShareMeta {
+    pub fn new(share: Share, meta: Metadata) -> ShareMeta {
+        ShareMeta { share, meta }
+    }
+}
+
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Share {
     x: u8,
@@ -53,13 +81,8 @@ impl Share {
         Self { x, ys }
     }
 
-    pub fn renew_poly(
-        &self,
-        shares_required: u8,
-        shares_to_create: u8,
-        sec_len: usize,
-    ) -> RenewableShare {
-        RenewableShare::new(self, shares_required, shares_to_create, sec_len)
+    pub fn renew_poly(&self, metadata: &Metadata) -> RenewableShare {
+        RenewableShare::new(self, metadata)
     }
 
     pub fn id(&self) -> u8 {
@@ -72,16 +95,17 @@ impl Share {
 }
 
 impl RenewableShare {
-    pub fn new(share: &Share, shares_required: u8, shares_to_create: u8, sec_len: usize) -> Self {
+    pub fn new(share: &Share, metadata: &Metadata) -> Self {
         let mut rng = thread_rng();
 
-        let mut coeffs: Vec<u8> = Vec::with_capacity(sec_len * shares_to_create as usize);
-        unsafe { coeffs.set_len(sec_len * shares_to_create as usize) };
+        let mut coeffs: Vec<u8> =
+            Vec::with_capacity(metadata.sec_len * metadata.shares_to_create as usize);
+        unsafe { coeffs.set_len(metadata.sec_len * metadata.shares_to_create as usize) };
         rng.fill(coeffs.as_mut_slice());
 
         let mut share_poly = GaloisPolynomial::new();
         share_poly.set_coeff(Coeff(0), 0);
-        for i in 1..(shares_required as usize) {
+        for i in 1..(metadata.shares_required as usize) {
             let curr_co = coeffs[(share.x as usize * i) + i];
             share_poly.set_coeff(Coeff(curr_co), i);
         }
@@ -117,13 +141,13 @@ impl RenewableShare {
 mod tests {
     use sss_rs::basic_sharing::{from_secrets, reconstruct_secrets};
 
-    use crate::secret::secret::Share;
+    use crate::secret::secret::{Metadata, Share};
 
     #[test]
     fn test_renewable_share() {
         let mut share = Share::new(1, vec![1, 2, 3]);
         let mut share_2 = Share::new(1, vec![1, 2, 3]);
-        let renewable_share = share.renew_poly(2, 3, 3);
+        let renewable_share = share.renew_poly(&Metadata::new(2, 3, 3));
         renewable_share.renew(&mut share_2);
         renewable_share.renew(&mut share);
         assert_eq!(share, share_2);
@@ -138,7 +162,11 @@ mod tests {
 
         let mut shares_vec: Vec<Share> = shares.into_iter().map(|s| s.into()).collect::<Vec<_>>();
         let share = shares_vec.first().unwrap();
-        let stable_poly = share.renew_poly(shares_required, shares_to_create, secret.len());
+        let stable_poly = share.renew_poly(&Metadata::new(
+            shares_required,
+            shares_to_create,
+            secret.len(),
+        ));
 
         shares_vec.iter_mut().for_each(|i| stable_poly.renew(i));
 

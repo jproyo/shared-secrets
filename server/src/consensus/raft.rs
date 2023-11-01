@@ -3,7 +3,7 @@ use bincode::{deserialize, serialize};
 use log::info;
 use riteraft::{Mailbox, Raft, Result as RiteResult, Store};
 use slog::Logger;
-use sss_wrap::secret::secret::{RenewableShare, Share};
+use sss_wrap::secret::secret::{RenewableShare, ShareMeta};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
@@ -18,7 +18,7 @@ use super::messages::Message;
 #[derive(Clone)]
 pub struct HashStore {
     node_id: NodeId,
-    storage: Arc<RwLock<HashMap<ClientId, Share>>>,
+    storage: Arc<RwLock<HashMap<ClientId, ShareMeta>>>,
     refreshing: Arc<AtomicBool>,
 }
 
@@ -39,11 +39,11 @@ impl HashStore {
             refreshing: Arc::new(AtomicBool::new(false)),
         }
     }
-    pub fn get(&self, id: ClientId) -> Result<Option<Share>, SecretServerError> {
+    pub fn get(&self, id: ClientId) -> Result<Option<ShareMeta>, SecretServerError> {
         Ok(self.storage.read()?.get(&id).cloned())
     }
 
-    pub fn insert(&mut self, id: ClientId, share: Share) -> Result<(), SecretServerError> {
+    pub fn insert(&mut self, id: ClientId, share: ShareMeta) -> Result<(), SecretServerError> {
         self.storage.write()?.insert(id, share);
         Ok(())
     }
@@ -56,7 +56,7 @@ impl HashStore {
         self.node_id
     }
 
-    pub fn storage(&self) -> Arc<RwLock<HashMap<ClientId, Share>>> {
+    pub fn storage(&self) -> Arc<RwLock<HashMap<ClientId, ShareMeta>>> {
         self.storage.clone()
     }
 }
@@ -86,12 +86,15 @@ impl Store for HashStore {
                         .map_err(|e| -> SecretServerError { e.into() })?;
                     let old_share = db_read.get(&client_id).ok_or(SecretServerError::NotFound)?;
                     let new_share_to_store =
-                        RenewableShare::renew_with_share(&new_share, &old_share);
+                        RenewableShare::renew_with_share(&new_share, &old_share.share);
                     let mut db = self
                         .storage
                         .write()
                         .map_err(|e| -> SecretServerError { e.into() })?;
-                    db.insert(client_id, new_share_to_store);
+                    db.insert(
+                        client_id,
+                        ShareMeta::new(new_share_to_store, old_share.meta.clone()),
+                    );
                 }
                 serialize(&Message::Refresh {
                     client_id,
@@ -121,7 +124,7 @@ impl Store for HashStore {
     }
 
     async fn restore(&mut self, snapshot: &[u8]) -> RiteResult<()> {
-        let new: HashMap<ClientId, Share> = deserialize(snapshot)?;
+        let new: HashMap<ClientId, ShareMeta> = deserialize(snapshot)?;
         let mut db = self
             .storage
             .write()

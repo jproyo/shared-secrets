@@ -6,7 +6,7 @@ use crate::domain::model::ClientId;
 use actix_web::dev::Server;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use log::info;
-use sss_wrap::secret::secret::Share;
+use sss_wrap::secret::secret::ShareMeta;
 
 use crate::domain::error::SecretServerError;
 use actix_web::{get, post, web, App, HttpServer, Responder, Result};
@@ -17,7 +17,7 @@ use std::ops::Deref;
 async fn create_share(
     data: web::Data<AppContext>,
     path: web::Path<ClientId>,
-    share: web::Json<Share>,
+    share: web::Json<ShareMeta>,
 ) -> Result<impl Responder, SecretServerError> {
     info!(
         "Creating new share from client {:?} with value {:?}",
@@ -36,7 +36,7 @@ async fn get_share(
 ) -> Result<impl Responder, SecretServerError> {
     let id = path.into_inner();
     let result = data.consensus_handler().get(id)?;
-    Ok(web::Json(result))
+    Ok(web::Json(result.map(|share| share.share.clone())))
 }
 
 #[get("/leave")]

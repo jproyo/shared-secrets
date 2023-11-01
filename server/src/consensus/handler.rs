@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bincode::serialize;
 use log::info;
 use riteraft::Mailbox;
-use sss_wrap::secret::secret::Share;
+use sss_wrap::secret::secret::ShareMeta;
 
 use crate::domain::error::SecretServerError;
 use crate::domain::model::ClientId;
@@ -33,11 +33,11 @@ impl ConsensusHandler {
         Ok(())
     }
 
-    pub fn get(&self, id: ClientId) -> Result<Option<Share>, SecretServerError> {
+    pub fn get(&self, id: ClientId) -> Result<Option<ShareMeta>, SecretServerError> {
         self.storage.get(id)
     }
 
-    pub fn insert(&mut self, id: ClientId, share: Share) -> Result<(), SecretServerError> {
+    pub fn insert(&mut self, id: ClientId, share: ShareMeta) -> Result<(), SecretServerError> {
         self.storage.insert(id, share)
     }
 
@@ -61,11 +61,10 @@ impl ConsensusHandler {
             .read()?
             .iter()
             .map(|(id, share)| {
-                let poly =
-                    share.renew_poly(id.shares_required(), id.shares_to_create(), id.sec_len());
-                let r = (0..id.shares_to_create())
+                let poly = share.share.renew_poly(&share.meta);
+                let r = (0..share.meta.shares_to_create)
                     .map(move |i| {
-                        let share = poly.get_share(i + 1, share.ys_len());
+                        let share = poly.get_share(i + 1, share.share.ys_len());
                         Message::Refresh {
                             client_id: id.clone(),
                             new_share: share,

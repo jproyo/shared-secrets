@@ -1,0 +1,15 @@
+[[servers]]
+id = "1"
+addr = "127.0.0.1:8080"
+
+[[servers]]
+id = "2"
+addr = "127.0.0.1:8081"
+
+
+client_id = "1"
+shares_to_create = 2
+shares_required = 1
+# api_key =
+
+
