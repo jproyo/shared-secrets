@@ -1,0 +1,7 @@
+raft_addr = "127.0.0.1:7070"
+# peer_addr =
+web_server = "127.0.0.1:8080"
+node_id = "1"
+# api_key =
+
+

@@ -130,8 +130,8 @@ impl Store for HashStore {
 }
 
 pub async fn init_consensus(
-    raft_addr: String,
-    peer_addr: Option<String>,
+    raft_addr: &str,
+    peer_addr: Option<&str>,
     store: HashStore,
     logger: Logger,
 ) -> Result<(JoinHandle<Result<(), riteraft::Error>>, Arc<Mailbox>), SecretServerError> {

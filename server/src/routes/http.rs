@@ -1,5 +1,6 @@
 use super::auth::validator;
 use super::context::AppContext;
+use crate::conf::settings::Settings;
 use crate::consensus::raft::HashStore;
 use crate::domain::model::ClientId;
 use actix_web::dev::Server;
@@ -46,12 +47,14 @@ async fn leave(data: web::Data<AppContext>) -> impl Responder {
 }
 
 pub async fn run(
-    web_server: String,
+    settings: &Settings,
     mailbox: Arc<Mailbox>,
     store: HashStore,
 ) -> io::Result<Server> {
+    let api_key = settings.api_key().to_string();
+    let web_server = settings.web_server();
     Ok(HttpServer::new(move || {
-        let app_context = AppContext::new(mailbox.clone(), store.clone(), "123456");
+        let app_context = AppContext::new(mailbox.clone(), store.clone(), &api_key);
         let auth_middleware = HttpAuthentication::bearer(validator);
         App::new()
             .app_data(web::Data::new(app_context))
@@ -61,6 +64,6 @@ pub async fn run(
             .service(get_share)
             .service(leave)
     })
-    .bind(web_server.clone())?
+    .bind(web_server)?
     .run())
 }

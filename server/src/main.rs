@@ -2,25 +2,13 @@
 
 use actix_web::dev::ServerHandle;
 use log::{info, warn};
+use shared_secret_server::conf::settings::Settings;
 use shared_secret_server::consensus::raft::{init_consensus, HashStore};
 use shared_secret_server::domain::model::NodeId;
 use shared_secret_server::routes::http;
 use slog::{slog_o, Drain};
-use structopt::StructOpt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::{AbortHandle, JoinHandle};
-
-#[derive(Debug, StructOpt)]
-struct Options {
-    #[structopt(long)]
-    raft_addr: String,
-    #[structopt(long)]
-    peer_addr: Option<String>,
-    #[structopt(long)]
-    web_server: String,
-    #[structopt(long)]
-    node_id: u8,
-}
 
 fn gracefully_shutdown(server_handle: ServerHandle, raft_abortable: AbortHandle) -> JoinHandle<()> {
     tokio::spawn(async move {
@@ -41,7 +29,7 @@ fn gracefully_shutdown(server_handle: ServerHandle, raft_abortable: AbortHandle)
     })
 }
 
-fn print_wellcome(options: Options) {
+fn print_wellcome(options: &Settings) {
     let str_log_wellcome = r#"
         ------------------------------------------------------------------------
         |                                                                      |
@@ -55,14 +43,14 @@ fn print_wellcome(options: Options) {
     "#;
 
     info!("{}", str_log_wellcome);
-    info!("\n\n ---- Starting Node Id {} ----- \n", options.node_id);
+    info!("\n\n ---- Starting Node Id {} ----- \n", options.node_id());
     info!(
         "\n\n ---- Starting API Server on {} ----- \n",
-        options.web_server
+        options.web_server()
     );
     info!(
         "\n\n ---- Starting Consensus Server on {} ----- \n",
-        options.raft_addr
+        options.raft_addr()
     );
 }
 
@@ -77,18 +65,18 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let _scope_guard = slog_scope::set_global_logger(logger.clone());
     let _log_guard = slog_stdlog::init().unwrap();
 
-    let options = Options::from_args();
-    let store = HashStore::new(NodeId(options.node_id));
+    let options = &Settings::new()?;
+    let store = HashStore::new(NodeId(options.node_id()));
 
     let (raft_handle, mailbox) = init_consensus(
-        options.raft_addr.clone(),
-        options.peer_addr.clone(),
+        options.raft_addr(),
+        options.peer_addr(),
         store.clone(),
         logger.clone(),
     )
     .await?;
 
-    let server = http::run(options.web_server.clone(), mailbox, store).await?;
+    let server = http::run(options, mailbox, store).await?;
 
     let server_handle = server.handle();
 
