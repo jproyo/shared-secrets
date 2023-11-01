@@ -23,6 +23,10 @@ jobs:
           components: rustfmt, clippy
       - name: Setup or Restore Rust Cache
         uses: Swatinem/rust-cache@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v1.13
       - name: Setup Cargo Make
         uses: davidB/rust-cargo-make@v1
       - name: Build and Tests

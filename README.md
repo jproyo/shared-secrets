@@ -2,7 +2,7 @@
 
 # Distributed Shared Secrets Example
 
-In this section, I will explore a minimalistic implementation of a Payment Engine. I will need to deal with multiple transactions and keep track of each User Account Balance.
+In this section, I will explore a minimalistic implementation of a Distributed Shared Secret using [Shamir's secret sharing](https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing) with [Proactive Refreshing](https://en.wikipedia.org/wiki/Proactive_secret_sharing).
 
 ## Table of Contents
 - [Preliminaries](#preliminaries)
@@ -11,7 +11,6 @@ In this section, I will explore a minimalistic implementation of a Payment Engin
 - [Design Documentation](#design-documentation)
     - [Design Principles](#design-principles)
     - [Modules](#modules)
-    - [Diagrams](#diagrams)
     - [Assumptions](#assumptions)
     - [Extensibility and Maintainability](#extensibility-and-maintainability)
     - [Error Handling](#error-handling)
@@ -23,15 +22,13 @@ In this section, I will explore a minimalistic implementation of a Payment Engin
 
 ## Preliminaries
 
-There are 2 options for building this project:
-
-1. You can build and run it directly with `Cargo`.
-2. Alternatively, you can build and run it using `Docker`.
+You can build and run it directly with `Cargo`.
 
 ### Rust requirements
 
-- You will need `cargo 1.72+`.
-- Also, make sure you have `rustc 1.72+`.
+- **Cargo**: `cargo 1.72+`.
+- **Rustc**: `rustc 1.72+`.
+- **Cargo Make**: `cargo make`
 
 ### Docker requirements
 
