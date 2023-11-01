@@ -1,0 +1,40 @@
+name: Build Rust
+
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+
+jobs:
+  build-rust:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v3
+
+      - name: Install latest Rustc stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: false
+          components: rustfmt, clippy
+      - name: Setup or Restore Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Setup Cargo Make
+        uses: davidB/rust-cargo-make@v1
+      - name: Build and Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --lib
+      - name: Build and Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --lib
+      - name: Run Integration Tests
+        run: cargo make tests
+

@@ -1,0 +1,13 @@
+name: BUILD - Shared Secret
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-rust:
+    uses: ./.github/workflows/common-pipeline.yml
+    secrets: inherit
+

@@ -15,6 +15,7 @@ use crate::domain::model::{ClientId, NodeId};
 
 use super::messages::Message;
 
+/// Represents a hash-based store for shares and metadata.
 #[derive(Clone)]
 pub struct HashStore {
     node_id: NodeId,
@@ -32,6 +33,7 @@ impl std::fmt::Debug for HashStore {
 }
 
 impl HashStore {
+    /// Creates a new instance of `HashStore`.
     pub fn new(node_id: NodeId) -> Self {
         Self {
             storage: Arc::new(RwLock::new(HashMap::new())),
@@ -39,23 +41,29 @@ impl HashStore {
             refreshing: Arc::new(AtomicBool::new(false)),
         }
     }
+
+    /// Retrieves the share metadata associated with the given client ID.
     pub fn get(&self, id: ClientId) -> Result<Option<ShareMeta>, SecretServerError> {
         Ok(self.storage.read().unwrap().get(&id).cloned())
     }
 
+    /// Inserts a new share metadata associated with the given client ID.
     pub fn insert(&mut self, id: ClientId, share: ShareMeta) -> Result<(), SecretServerError> {
         self.storage.write().unwrap().insert(id, share);
         Ok(())
     }
 
+    /// Checks if the store is currently in the process of refreshing.
     pub fn is_begin_refresh(&self) -> bool {
         self.refreshing.load(std::sync::atomic::Ordering::Acquire)
     }
 
+    /// Returns the node ID associated with the store.
     pub fn node_id(&self) -> NodeId {
         self.node_id
     }
 
+    /// Returns a clone of the underlying storage.
     pub fn storage(&self) -> Arc<RwLock<HashMap<ClientId, ShareMeta>>> {
         self.storage.clone()
     }
@@ -63,6 +71,7 @@ impl HashStore {
 
 #[async_trait]
 impl Store for HashStore {
+    /// Applies the given message to the store and returns the result.
     async fn apply(&mut self, message: &[u8]) -> RiteResult<Vec<u8>> {
         let message: Message = deserialize(message)?;
         let message: Vec<u8> = match message {
@@ -116,6 +125,7 @@ impl Store for HashStore {
         Ok(message)
     }
 
+    /// Returns a snapshot of the store.
     async fn snapshot(&self) -> RiteResult<Vec<u8>> {
         Ok(serialize(
             &self
@@ -126,6 +136,7 @@ impl Store for HashStore {
         )?)
     }
 
+    /// Restores the store from the given snapshot.
     async fn restore(&mut self, snapshot: &[u8]) -> RiteResult<()> {
         let new: HashMap<ClientId, ShareMeta> = deserialize(snapshot)?;
         let mut db = self
@@ -137,6 +148,7 @@ impl Store for HashStore {
     }
 }
 
+/// Initializes the consensus algorithm with the given parameters and returns the Raft handle and mailbox.
 pub async fn init_consensus(
     raft_addr: &str,
     peer_addr: Option<&str>,

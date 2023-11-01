@@ -100,3 +100,59 @@ impl ConsensusHandler {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use riteraft::Raft;
+    use slog::o;
+    use sss_wrap::from_secrets;
+    use sss_wrap::secret::secret::Metadata;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_refresh_secrets_no_secrets() -> Result<(), SecretServerError> {
+        let storage = HashStore::new(crate::domain::model::NodeId(1)); // Initialize the storage
+        let raft = Raft::new(
+            "localhost:8080".to_string(),
+            storage.clone(),
+            slog::Logger::root(slog::Discard, o!()),
+        );
+        let secret_server = ConsensusHandler::new(storage.clone(), Arc::new(raft.mailbox()));
+        secret_server.refresh_secrets().await?;
+        assert_eq!(storage.storage().read()?.len(), 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_refresh_secrets_with_secrets() -> Result<(), SecretServerError> {
+        let storage = HashStore::new(crate::domain::model::NodeId(1)); // Initialize the storage
+        let raft = Raft::new(
+            "localhost:8080".to_string(),
+            storage.clone(),
+            slog::Logger::root(slog::Discard, o!()),
+        );
+        let mail = raft.mailbox();
+        tokio::spawn(raft.lead());
+        let secret_server = ConsensusHandler::new(storage.clone(), Arc::new(mail));
+        let secret_vec = "test-secret".to_string().into_bytes();
+        let secrets = from_secrets(secret_vec.clone(), 9, 10, None).unwrap();
+        for (i, x) in secrets.clone().into_iter().enumerate() {
+            secret_server
+                .clone()
+                .insert(
+                    ClientId(i as u64),
+                    ShareMeta::new(x.into(), Metadata::new(9, 10, secret_vec.len())),
+                )
+                .unwrap();
+        }
+        secret_server.refresh_secrets().await?;
+        assert_eq!(storage.storage().read()?.len(), 10);
+        for (i, x) in storage.storage().read()?.iter() {
+            assert_ne!(x.share, secrets[i.0 as usize].clone().into());
+        }
+
+        Ok(())
+    }
+}

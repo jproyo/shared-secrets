@@ -1,11 +1,17 @@
-use std::time::Duration;
-
-use log::info;
-use tokio::time::Instant;
-
-use crate::consensus::handler::ConsensusHandler;
-use crate::domain::error::SecretServerError;
-
+/// Asynchronously refreshes secrets.
+///
+/// The function takes a `ConsensusHandler` as an argument and attempts to refresh the secrets.
+/// If `is_begin_refresh` returns `true`, the function skips the refresh process and returns early.
+/// Otherwise, it sends a start refresh message and waits for the response.
+/// If the response is successful, it proceeds to refresh the secrets and then finishes the refresh process.
+///
+/// # Arguments
+///
+/// * `consensus_handler` - The consensus handler used for secret refreshing.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the secrets are refreshed successfully, otherwise returns a `SecretServerError`.
 async fn refresh_secret(consensus_handler: ConsensusHandler) -> Result<(), SecretServerError> {
     if consensus_handler.is_begin_refresh() {
         info!("Secrets are being refreshed, skipping this refresh");
@@ -22,6 +28,18 @@ async fn refresh_secret(consensus_handler: ConsensusHandler) -> Result<(), Secre
     }
 }
 
+/// Runs the secret refresher task with the specified interval.
+///
+/// The function initializes a timer to keep track of the start time.
+/// It then enters an infinite loop where it calculates the next execution time based on the interval.
+/// It sleeps until the next execution time is reached, and then calls the `refresh_secret` function.
+/// If the function succeeds, it logs a success message, otherwise it logs an error message.
+/// Finally, it updates the start time for the next iteration.
+///
+/// # Arguments
+///
+/// * `interval_secs` - The interval in seconds between each secret refresh task.
+/// * `consensus_handler` - The consensus handler used for secret refreshing.
 pub async fn run(interval_secs: u64, consensus_handler: ConsensusHandler) {
     let mut start_time = Instant::now();
 
