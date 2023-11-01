@@ -9,10 +9,8 @@ In this section, I will explore a minimalistic implementation of a Distributed S
 - [Building the Project](#building-the-project)
 - [Running the Program](#running-the-program)
 - [Design Documentation](#design-documentation)
-    - [Design Principles](#design-principles)
-    - [Modules](#modules)
+    - [Solution](#solution)
     - [Assumptions](#assumptions)
-    - [Extensibility and Maintainability](#extensibility-and-maintainability)
     - [Error Handling](#error-handling)
     - [Testing](#testing)
 - [Future Work](#future-work)
@@ -56,7 +54,11 @@ To build the project, run the following commands:
 
 The solution contains 2 binaries *Client* and *Server*. Since this is a distributed system, it will require to run more than one server instance.
 
-In order to simplify running the solution, there is a `docker-compose` file inside `server/operations/docker` in order to run a cluster mode server.
+In order to simplify running the solution, there is a `docker-compose` file inside `server/operations/docker` in order to run several nodes.
+
+Specific configurations can be changed under `server/operations/config`. There is 1 configuration file for node instance and 1 environment file for the **API_KEY**.
+
+### Run Server
 
 To run the server do the following:
 
@@ -75,198 +77,89 @@ docker compose -f server/operations/docker/docker-compose.yaml up -d
 > IMPORTANT: It is important to run this command from the root of the project.
 
 
-### Running with Rust
+### Run Client
+Now that all the nodes are running you can run the client against it, any time you want:
 
-```shell
-> cargo run -- my_path_to_my.csv > my_result.csv
+1. Go to `client` directory
+2. If you want to create a secret and distribute the shares run:
+
+```bash
+API_KEY=RANDOM_GENERATED_KEY cargo run -- --command create --secret "my secret long"
 ```
 
-### Running with Docker
-When using **Docker**, you need to mount your local disk as a volume. If your **CSV** file is located at `/home/your_user/data/my_csv.csv`, follow these steps:
+You should set as environment variable `API_KEY` the same value of `server/operations/config/.env.local`. This is the Key that uses the clients to communicate with the nodes. You can change in both places the key.
 
-- Build the Docker image as explained in the Building with Docker section.
-- Run the Docker image using the following command:
+3. If you want to recover the secret run:
 
-```shell
-> docker run -v /home/your_user/data/my_csv.csv:/app/data payments /app/data/my_csv.csv
+```bash
+API_KEY=RANDOM_GENERATED_KEY cargo run -- --command get
 ```
 
-### Run with logging
+### Run Tests
 
-```shell
-> RUST_LOG=warn cargo run -- my_path_to_my.csv > my_result.csv
+1. Run unit tests
+
+```bash
+cargo test --lib
 ```
 
-> NOTE: Running with logging enable will redirect logging output to the stderr. Only results of the transaction processor will be redirected to stdout in order to have control on the stdout and stderr redirection for the user.
+2. Run integration test
+
+```bash
+cargo make --cwd server tests
+```
 
 ---
 
 ## Design Documentation
 In this section, I will describe all the assumptions, decisions, and pending improvements that led to the current state of this software.
 
-### Design Principles
+### Solution
+The most important part of the solution is the distributed nodes servers which are keeping 1 Share of the secret each time a trusted client creates a secret and distribute the shares among the available nodes. Here is a brief description of the most important aspects of the solution:
 
-- **P1: Extensible**: Fundaments of this can be found in [Extensibility](#extensibility-and-maintainability) section.
-- **P2: Single Responsibility**: Each module and Type has a single responsibility.
-- **P3: Composable**: `program` module is designed with the principle in mind that you can compose different `Source`, `PaymentEngine` and `Sink` implementations. Also **P2** enables this principle.
-- **P4: Testability**: Splitting different parts of the logic as exposed before, allows to test both each piece isolated and all integrated togheter. This is enable by **P2** as well.
-- **P5: Thread Safe**: Critical parts are encoded using Thread Safe types.
+- **Sharing Secret Model**: As it is described in the introduction a [Shamir's secret sharing](https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing) with [Proactive Refreshing](https://en.wikipedia.org/wiki/Proactive_secret_sharing) was implemented. Some part of the implementation was done using `sss-rs` crate, but there was no crate that has Proactive Sharing implemented. The refreshing code, which generates a new random polynomial, it was done in this project and it is inside `sss-wrap` module used by `server`.
 
-### Modules
+- **Creation and Retrieval of Shares**: For this part wee have implemented a simple REST API in order each node can receive a **Share** and return a **Share** if it is requested by a trusted user.
 
-- `program`: This module contains the definition of the pipeline trait and its implementations for running a program that reads transactions from some `Source`, process them with some `PaymentEngine`, and writes to some `Sink`.
-- `io`: This module contains the definition of implementation types for `Source` and `Sink`
-- `io::csv`: Submodule that contains implementation types for dealing with CSV files as a source and destination.
-- `domain`: Module that describe domain entities and errors.
-- `domain::entities`: Module that contains main entities such as `Transaction`, `TransactionResult`, etc.
-- `domain::errors`: Although there is only 1 enum type for the whole errors, this module was conceived separated for future extensions and implementations.
-- `engine`: Module that contains Transaction Processors Engines. Only trait definition
-- `engine::memory`: Module that contains Implementation of Transaction processing based on memory
+- **Security**: The communication between **Clients** and **Servers** is done with an **Authorization** API Key Header. Although it is a weak security mechanism, it is a layer of security in which all the participants needs to be trusted entities in the interaction.
 
-### Diagrams
+- **Proactive Shares Refreshing**: The refreshing mechanism happen in some random node at some moment in time without client interaction. Since 1 node will take the lead to create the new random polynomial and distribute the evaluation for each `x` among the other nodes, a [**Raft**](https://raft.github.io/) consensus algorithm was implement to coordinate this distributed update. This was done using [riteraft](https://github.com/ritelabs/riteraft) crate.
 
-#### Sequence Diagram
-The following sequence diagrams outline the main flows of the system:
-
-1. Main program
-
-```mermaid
-sequenceDiagram
-    actor U as User
-    participant PP as Pipeline
-    participant CR as CSVReader
-    participant ME as MemoryThreadSafePaymentEngine
-    participant CW as CSVWriter
-    U ->> PP: run
-    PP ->> CR: read
-    activate PP
-    loop for each transaction record
-        PP ->> ME: process(tx)
-    end
-    deactivate PP
-    PP ->> ME: summary()
-    activate PP
-    loop for each result
-        PP ->> CW: write(result)
-    end
-    deactivate PP
-```
-
-2. Process Transaction
-
-```mermaid
-sequenceDiagram
-    actor U as External
-    participant ME as MemoryThreadSafePaymentEngine
-    participant TX as Transaction
-    participant TR as TransactionResult
-    U ->> ME: process
-    activate ME
-    ME ->> TR: process(TX)
-    TX ->> TX: should_be_tracked
-    alt should_be_tracked
-        ME ->> ME: store(TX)
-    end
-    deactivate ME
-```
+- **Security in Consensus**: Consensus protocol is closed to the participants of the nodes and at this moment there is no Security extra layer implemented in the protocol.
 
 ### Assumptions
 
 Here are some of the assumptions that were made during the development of this software:
 
-- AS_1: **Thread Safe**: Although the program is not processing transactions concurrently, which could have been ideally based on the fact that the transactions can be split among threads, all the processing is protected by Thread Safe Types to enable the program be run in a concurrent context.
+- AS_1: **Security between Client/Server**: An authorization API_KEY Bearer token was implement. No extra authorization or security mechanism was implemented because it is assumed that this is an example and the modular approach of the code, as well as `actix-web` crate allows implementing any other sophisticated mechanism if we want.
 
-- AS_2: **Transaction IDs** are not globally unique. What makes a transaction unique is the combination of the **Transaction ID and Client ID**. It is assumed that **Transaction IDs** can be repeated among Clients. To accommodate this, the `MemoryThreadSafePaymentEngine` implementation includes special storage in memory to track transactions by Client.
+- AS_2: **Security in Consensus**: None security was implemented. It is assumed that ports of the consensus protocol, are neither going to be open to the host machine, if it is running on `docker compose`, nor going to be running in a public network if it is not running with `docker`.
 
-- AS_3: Although it would be ideal to split transactions into chunks and process them in different threads, for simplicity and to focus on the account settlement problem, this approach was not taken. However, the only implementation of `PaymentEngine` provided is thread-safe, allowing it to be used across multiple threads. There is a test within `engine::memory` that verifies this behavior.
-
-- AS_4: It is assumed that the following errors would stop the program rather than continuing to process transactions, as these indicate incorrect sets of transactions that need verification:
-
-    - Any parse error of the CSV.
-    - Any other unexpected errors.
-    - **Overflow in numbers** is not controlled, as we rely on the runtime system and compiler to handle this.
-
-- AS_5: Logging is implemented only to track skipped transactions because of logical errors, like wrong dispute insufficient founds, etc. If you want to activate logging, which is going to be redirected to `stderr` you should run program with the indications [above](#run-with-logging)
-
-### Extensibility and Maintainability
-
-The design supports extensibility and maintainability in the following ways:
-
-- Program Pipeline Module `program`, is a module that represent who the different pieces can be composed and structured independently of the implementation. In this example we are showing a single implementation based on CSV reader, writer, and Memory Thread Safe transaction processing. But it is clear to the reader of that module that this module allows extensibility, keeping the main logic of the program intact. In the future we can implement a `TCPReader` and `TCPWriter` and compose using the same `Pipeline::run` program. You can check documentation [here](doc/payment-settle-accounts/program/index.html).
-
-- All processing is based on the `PaymentEngine` trait, allowing for future implementations with different semantics, such as using Kafka and a database for storage and messaging.
-
-- The settlement logic is encapsulated within the `Transaction` type, making it the central place to modify or investigate any issues related to the software.
-
-- Each module and important function has been thoroughly tested.
-
-#### Example of Extending Transaction Pipeline Processor
-
-This example can be found [here](doc/payment-settle-accounts/program/index.html).
-
-```rust
-use std::net::{TcpStream, TcpListener};
-use std::io::{BufReader, BufWriter};
-use std::thread;
-
-// Define TCPSource struct implementing Pipeline trait
-struct TCPSource {
-    stream: TcpStream,
-}
-
-impl Pipeline for TCPSource {
-    fn run(&mut self) -> Result<(), TransactionError> {
-        // Implement TCPSource pipeline logic here
-        Ok(())
-    }
-}
-
-// Define TCPSink struct implementing Pipeline trait
-struct TCPSink {
-    listener: TcpListener,
-}
-
-impl Pipeline for TCPSink {
-    fn run(&mut self) -> Result<(), TransactionError> {
-        // Implement TCPSink pipeline logic here
-        Ok(())
-    }
-}
-
-// Compose TransactionPipeline with TCPSource and TCPSink
-let pipeline: Box<dyn Pipeline> = Box::new(TransactionPipeline {
-    source: TCPSource { stream: TcpStream::connect("127.0.0.1:8080").unwrap() },
-    filter: MemoryThreadSafePaymentEngine::new(),
-    sink: TCPSink { listener: TcpListener::bind("127.0.0.1:8081").unwrap() },
-});
-```
+- AS_3: **Client**: Client implementation is minimal and lack of strong design principles. `client` module was develop in order to test the nodes and algorithm properly.
 
 ### Error Handling
 
 All error handling are based on `thiserror` crate using an enum and relying on `Result` type.
 There are 2 kind of errors:
 
-- **Reporting Errors**: This errors are logical errors that allow us to continue with the execution of the program but we want to logging some how without breaking the execution. An example of this, it is a transaction that wants to withdraw but there are not enough funds. In this cases we are going to handle those errors and report it with `env_logger` crate in `warn` mode. If `RUST_LOG` env variable is set the error will be display in the console but not redirected to the `stdout`, only to the `stderr`. Check [here](#run-with-logging).
-
-- **Unexpected Errors**: This errors will not be handle and it will be propagated to the main function. Some example of this kind of errors are completely wrong formatted CSV, or some OS Signal like SIGTERM or anyother unexpected.
-
 ### Testing
 
-All the testing are unit test against custom created data either encoded in the test itself or in files under `data` and `tests/data` folders.
-I used to have `proptest` configured with some cases but I removed it because it made less clean the code in `entities` module.
+The focus of the testing was put on Integration test. For running the integration test it is important to use `cargo make` as it is explained above, because it is going to start a `docker compose` with 3 nodes that are synchronizing and the test is acting as a client hitting the real servers inside `docker`.
+
+There are some **unit tests** as well, but only for important parts like the refreshing in `ConsensusHandler`.
 
 ---
 
 ## Future Work
 This exercise left many opportunities for improving the current solution that could be addressed in future implementations:
 
-- Implement observability.
-- Implement partitioning and multithreading to process transactions concurrently in chunks.
-- Implement different `PaymentEngine` implementations to reduce reliance on in-memory storage.
+- Implement better security mechanism between client and server, such as `TLS` and some other token refresh based authentication / authorization like `JWT-Set`.
+- Implement security in consensus protocol to allow be open to any trusted participant. Here we can implement something similar like Client/Server security but it will require forking `riteraft` to control the `join` function [here](https://github.com/ritelabs/riteraft/blob/2e02abb0cb5e5bb9e1e9d256f5672fb0449c84f8/src/raft.rs#L109).
 
 ---
 
 ## Conclusions
-Having worked on various highly distributed and transactional systems, it's fascinating how seemingly simple problems like these can still be challenging due to their sensitive nature. Despite this, it's remarkable how Rust facilitates the development of safe and secure solutions in a relatively short amount of time, with minimal external dependencies.
+
+In conclusion, the implementation of a client-server program in Rust for distributing and sharing secrets using Shamir's secret sharing and the Raft consensus protocol represents a remarkable feat of combining cryptographic security and distributed systems engineering. This work demonstrates the power of Rust's reliability and performance, ensuring the confidentiality and integrity of shared secrets. By seamlessly integrating two robust technologies, it opens doors to new horizons in secure and resilient communication, showcasing the potential for innovation at the intersection of cryptography and distributed systems.
 
 I thoroughly enjoyed working on this exercise, and I hope readers find it equally engaging. Your feedback and observations are welcome!
