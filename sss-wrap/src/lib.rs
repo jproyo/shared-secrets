@@ -3,3 +3,4 @@ mod polynomial;
 pub mod secret;
 
 pub use sss_rs::basic_sharing::*;
+pub use sss_rs::*;

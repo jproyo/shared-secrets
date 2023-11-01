@@ -76,6 +76,14 @@ impl From<Share> for Vec<(u8, u8)> {
     }
 }
 
+impl From<Share> for Vec<u8> {
+    fn from(share: Share) -> Self {
+        let mut v = vec![share.x];
+        v.extend(share.ys);
+        v
+    }
+}
+
 impl Share {
     pub fn new(x: u8, ys: Vec<u8>) -> Self {
         Self { x, ys }
