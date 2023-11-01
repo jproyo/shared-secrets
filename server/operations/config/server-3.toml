@@ -1,0 +1,8 @@
+raft_addr = "server-3:7070"
+peer_addr = "server-1:7070"
+web_server = "server-3:8080"
+node_id = "3"
+# api_key =
+interval_refresh_secs = 120
+
+

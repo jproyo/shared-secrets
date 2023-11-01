@@ -35,6 +35,9 @@ async fn get_share(
     path: web::Path<ClientId>,
 ) -> Result<impl Responder, SecretServerError> {
     let id = path.into_inner();
+    if data.consensus_handler().is_begin_refresh() {
+        return Err(SecretServerError::RefreshInProgress);
+    }
     let result = data.consensus_handler().get(id)?;
     Ok(web::Json(result.map(|share| share.share.clone())))
 }

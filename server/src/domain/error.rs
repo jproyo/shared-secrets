@@ -21,6 +21,8 @@ pub enum SecretServerError {
     SerializeError(#[from] bincode::Error),
     #[error("Error refreshing secrets")]
     RefreshError,
+    #[error("Refresh in progress")]
+    RefreshInProgress,
 }
 
 impl<T> From<PoisonError<T>> for SecretServerError {
@@ -49,6 +51,7 @@ impl error::ResponseError for SecretServerError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::SerializeError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::RefreshError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::RefreshInProgress => StatusCode::CONFLICT,
         }
     }
 }
