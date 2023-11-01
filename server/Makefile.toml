@@ -16,7 +16,7 @@ command = "cargo"
 args = ["test", "--tests"]
 dependencies = ["sleep"]
 
-[tasks.testis]
+[tasks.tests]
 description = "Run integration tests with docker-compose"
 run_task = { name = ["test-int"], fork = true, cleanup_task = "stop-servers" }
 

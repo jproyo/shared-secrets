@@ -53,11 +53,27 @@ To build the project, run the following commands:
 ---
 
 ## Running the Program
-The solution contains 2 binaries *Client* and *Server*
 
-The main program reads data from a **CSV** file and writes the results to **stdout**.
+The solution contains 2 binaries *Client* and *Server*. Since this is a distributed system, it will require to run more than one server instance.
 
-To test the program with a substantial **CSV** file, you will need to either generate one or have it available in your local environment. The examples under the `data` folder and `tests/data` folder are simple and do not represent real-world scenarios.
+In order to simplify running the solution, there is a `docker-compose` file inside `server/operations/docker` in order to run a cluster mode server.
+
+To run the server do the following:
+
+1. In foreground mode
+
+```bash
+docker compose -f server/operations/docker/docker-compose.yaml up
+```
+
+2. In background mode
+
+```bash
+docker compose -f server/operations/docker/docker-compose.yaml up -d
+```
+
+> IMPORTANT: It is important to run this command from the root of the project.
+
 
 ### Running with Rust
 

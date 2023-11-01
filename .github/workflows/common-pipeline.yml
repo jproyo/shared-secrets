@@ -40,5 +40,5 @@ jobs:
           command: test
           args: --all-features --lib
       - name: Run Integration Tests
-        run: cargo make tests
+        run: cargo make --cwd server tests
 
