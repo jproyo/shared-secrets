@@ -1,10 +1,9 @@
-use slog::{info, Logger};
-use sss_wrap::secret::secret::{RenewableShare, Share};
-
 use async_trait::async_trait;
 use bincode::{deserialize, serialize};
+use log::info;
 use riteraft::{Mailbox, Raft, Result as RiteResult, Store};
-use serde::{Deserialize, Serialize};
+use slog::Logger;
+use sss_wrap::secret::secret::{RenewableShare, Share};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
@@ -14,19 +13,7 @@ use tokio::task::JoinHandle;
 use crate::domain::error::SecretServerError;
 use crate::domain::model::{ClientId, NodeId};
 
-#[derive(Serialize, Deserialize, Debug)]
-enum Message {
-    StartRefresh {
-        node_id: NodeId,
-    },
-    Refresh {
-        client_id: ClientId,
-        new_share: Share,
-    },
-    FinishRefresh {
-        node_id: NodeId,
-    },
-}
+use super::messages::Message;
 
 #[derive(Clone)]
 pub struct HashStore {
@@ -60,6 +47,14 @@ impl HashStore {
         self.storage.write()?.insert(id, share);
         Ok(())
     }
+
+    pub fn is_begin_refresh(&self) -> bool {
+        self.refreshing.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    pub fn node_id(&self) -> NodeId {
+        self.node_id
+    }
 }
 
 #[async_trait]
@@ -68,9 +63,10 @@ impl Store for HashStore {
         let message: Message = deserialize(message)?;
         let message: Vec<u8> = match message {
             Message::StartRefresh { node_id } => {
+                info!("Start refresh from node {:?}", node_id);
                 if node_id != self.node_id {
                     self.refreshing
-                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                        .store(true, std::sync::atomic::Ordering::Release);
                 }
                 serialize(&Message::StartRefresh { node_id })?
             }
@@ -78,6 +74,7 @@ impl Store for HashStore {
                 client_id,
                 new_share,
             } => {
+                info!("Refresh client {:?} with new share", client_id);
                 if new_share.id() == *self.node_id.deref() {
                     let db_read = self
                         .storage
@@ -98,9 +95,10 @@ impl Store for HashStore {
                 })?
             }
             Message::FinishRefresh { node_id } => {
+                info!("Finish refresh from node {:?}", node_id);
                 if node_id != self.node_id {
                     self.refreshing
-                        .store(false, std::sync::atomic::Ordering::Relaxed);
+                        .store(false, std::sync::atomic::Ordering::Release);
                 }
                 serialize(&Message::FinishRefresh { node_id })?
             }
@@ -138,11 +136,11 @@ pub async fn init_consensus(
     let raft = Raft::new(raft_addr.to_owned(), store.clone(), logger.clone());
     let mailbox = Arc::new(raft.mailbox());
     let (raft_handle, mailbox) = if let Some(addr) = peer_addr {
-        info!(logger, "running in follower mode");
+        info!("running in follower mode");
         let handle = tokio::spawn(raft.join(addr.to_owned()));
         (handle, mailbox)
     } else {
-        info!(logger, "running in leader mode");
+        info!("running in leader mode");
         let handle = tokio::spawn(raft.lead());
         (handle, mailbox)
     };

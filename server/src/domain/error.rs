@@ -17,6 +17,8 @@ pub enum SecretServerError {
     ConsensusError(#[from] riteraft::Error),
     #[error("Share secret not found")]
     NotFound,
+    #[error("Error in serialization messages in the consesus protocol [{0}]")]
+    SerializeError(#[from] bincode::Error),
 }
 
 impl<T> From<PoisonError<T>> for SecretServerError {
@@ -43,6 +45,7 @@ impl error::ResponseError for SecretServerError {
             Self::InvalidStateError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::ConsensusError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::SerializeError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

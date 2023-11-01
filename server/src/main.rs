@@ -3,14 +3,20 @@
 use actix_web::dev::ServerHandle;
 use log::{info, warn};
 use shared_secret_server::conf::settings::Settings;
+use shared_secret_server::consensus::handler::ConsensusHandler;
 use shared_secret_server::consensus::raft::{init_consensus, HashStore};
 use shared_secret_server::domain::model::NodeId;
+use shared_secret_server::refresher::secret;
 use shared_secret_server::routes::http;
 use slog::{slog_o, Drain};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::{AbortHandle, JoinHandle};
 
-fn gracefully_shutdown(server_handle: ServerHandle, raft_abortable: AbortHandle) -> JoinHandle<()> {
+fn gracefully_shutdown(
+    server_handle: ServerHandle,
+    raft_abortable: AbortHandle,
+    cron_abortable: AbortHandle,
+) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut sig_int = signal(SignalKind::interrupt()).unwrap();
         let mut sig_term = signal(SignalKind::terminate()).unwrap();
@@ -20,6 +26,8 @@ fn gracefully_shutdown(server_handle: ServerHandle, raft_abortable: AbortHandle)
             server_handle.stop(true).await;
             warn!("Shutting down Consensus Module....");
             raft_abortable.abort();
+            warn!("Shutting down Cron Module....");
+            cron_abortable.abort();
         };
         tokio::select! {
             _ = sig_int.recv() => cancel.await,
@@ -76,18 +84,28 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    let server = http::run(options, mailbox, store).await?;
+    let consensus_handler = ConsensusHandler::new(store, mailbox);
+
+    let server = http::run(options, consensus_handler.clone()).await?;
 
     let server_handle = server.handle();
 
     let http_server = tokio::spawn(server);
 
-    let http_server_shutdown = gracefully_shutdown(server_handle, raft_handle.abort_handle());
+    let cron_refresher = secret::run(options.interval_refresh_secs(), consensus_handler.clone());
+
+    let cron_refresher = tokio::spawn(cron_refresher);
+
+    let graceful_shutdown = gracefully_shutdown(
+        server_handle,
+        raft_handle.abort_handle(),
+        cron_refresher.abort_handle(),
+    );
 
     print_wellcome(options);
 
-    let result = tokio::try_join!(raft_handle, http_server, http_server_shutdown)?;
-    let (raft_result, http_server_result, _) = result;
+    let result = tokio::try_join!(raft_handle, http_server, cron_refresher, graceful_shutdown,)?;
+    let (raft_result, http_server_result, _, _) = result;
     raft_result?;
     http_server_result?;
     Ok(())

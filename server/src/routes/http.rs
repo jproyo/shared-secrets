@@ -1,19 +1,17 @@
 use super::auth::validator;
 use super::context::AppContext;
 use crate::conf::settings::Settings;
-use crate::consensus::raft::HashStore;
+use crate::consensus::handler::ConsensusHandler;
 use crate::domain::model::ClientId;
 use actix_web::dev::Server;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use log::info;
-use riteraft::Mailbox;
 use sss_wrap::secret::secret::Share;
 
 use crate::domain::error::SecretServerError;
 use actix_web::{get, post, web, App, HttpServer, Responder, Result};
 use std::io;
 use std::ops::Deref;
-use std::sync::Arc;
 
 #[post("/{client_id}/secret")]
 async fn create_share(
@@ -26,7 +24,8 @@ async fn create_share(
         path, share
     );
     let client_id = path.into_inner();
-    data.store().insert(client_id, share.deref().clone())?;
+    data.consensus_handler()
+        .insert(client_id, share.deref().clone())?;
     Ok(web::Json(share))
 }
 
@@ -36,25 +35,21 @@ async fn get_share(
     path: web::Path<ClientId>,
 ) -> Result<impl Responder, SecretServerError> {
     let id = path.into_inner();
-    let result = data.store().get(id)?;
+    let result = data.consensus_handler().get(id)?;
     Ok(web::Json(result))
 }
 
 #[get("/leave")]
 async fn leave(data: web::Data<AppContext>) -> impl Responder {
-    data.mailbox().leave().await.unwrap();
+    data.consensus_handler().leave().await.unwrap();
     "OK".to_string()
 }
 
-pub async fn run(
-    settings: &Settings,
-    mailbox: Arc<Mailbox>,
-    store: HashStore,
-) -> io::Result<Server> {
+pub async fn run(settings: &Settings, consensus_handler: ConsensusHandler) -> io::Result<Server> {
     let api_key = settings.api_key().to_string();
     let web_server = settings.web_server();
     Ok(HttpServer::new(move || {
-        let app_context = AppContext::new(mailbox.clone(), store.clone(), &api_key);
+        let app_context = AppContext::new(consensus_handler.clone(), &api_key);
         let auth_middleware = HttpAuthentication::bearer(validator);
         App::new()
             .app_data(web::Data::new(app_context))

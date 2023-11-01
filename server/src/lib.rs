@@ -3,3 +3,4 @@ pub mod consensus;
 pub mod domain;
 pub mod routes;
 pub mod conf;
+pub mod refresher;

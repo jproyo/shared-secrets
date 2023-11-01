@@ -11,6 +11,7 @@ pub struct Settings {
     web_server: String,
     node_id: u8,
     api_key: String,
+    interval_refresh_secs: u64,
 }
 
 impl Settings {
@@ -43,5 +44,9 @@ impl Settings {
 
     pub fn api_key(&self) -> &str {
         &self.api_key
+    }
+
+    pub fn interval_refresh_secs(&self) -> u64 {
+        self.interval_refresh_secs
     }
 }
