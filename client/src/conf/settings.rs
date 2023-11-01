@@ -22,8 +22,8 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
         let s = Config::builder()
-            .add_source(config::Environment::default())
             .add_source(File::with_name("config/default"))
+            .add_source(config::Environment::default())
             .build()?;
 
         let settings: Settings = s.try_deserialize()?;

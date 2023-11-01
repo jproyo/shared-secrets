@@ -50,8 +50,11 @@ impl ConsensusHandler {
         let message = serialize(&Message::StartRefresh {
             node_id: self.storage.node_id(),
         })?;
-        let _ = self.mailbox.send(message).await?;
-        Ok(())
+        self.mailbox
+            .send(message)
+            .await
+            .map_err(|e| e.into())
+            .map(|_| ())
     }
 
     pub async fn refresh_secrets(&self) -> Result<(), SecretServerError> {
@@ -65,6 +68,7 @@ impl ConsensusHandler {
                 let r = (0..share.meta.shares_to_create)
                     .map(move |i| {
                         let share = poly.get_share(i + 1, share.share.ys_len());
+                        info!("Refreshing message with share {:?}", share);
                         Message::Refresh {
                             client_id: id.clone(),
                             new_share: share,

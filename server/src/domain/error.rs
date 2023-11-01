@@ -13,12 +13,14 @@ use thiserror::Error;
 pub enum SecretServerError {
     #[error("Cannot get storage with share secret at this moment [{0}]")]
     InvalidStateError(String),
-    #[error("Error in consesus protocol [{0}]")]
+    #[error("Error in consesus protocol [{0:?}]")]
     ConsensusError(#[from] riteraft::Error),
     #[error("Share secret not found")]
     NotFound,
-    #[error("Error in serialization messages in the consesus protocol [{0}]")]
+    #[error("Error in serialization messages in the consesus protocol [{0:?}]")]
     SerializeError(#[from] bincode::Error),
+    #[error("Error refreshing secrets")]
+    RefreshError,
 }
 
 impl<T> From<PoisonError<T>> for SecretServerError {
@@ -46,6 +48,7 @@ impl error::ResponseError for SecretServerError {
             Self::ConsensusError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::SerializeError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::RefreshError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

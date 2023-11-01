@@ -40,11 +40,11 @@ impl HashStore {
         }
     }
     pub fn get(&self, id: ClientId) -> Result<Option<ShareMeta>, SecretServerError> {
-        Ok(self.storage.read()?.get(&id).cloned())
+        Ok(self.storage.read().unwrap().get(&id).cloned())
     }
 
     pub fn insert(&mut self, id: ClientId, share: ShareMeta) -> Result<(), SecretServerError> {
-        self.storage.write()?.insert(id, share);
+        self.storage.write().unwrap().insert(id, share);
         Ok(())
     }
 
@@ -80,21 +80,24 @@ impl Store for HashStore {
             } => {
                 info!("Refresh client {:?} with new share", client_id);
                 if new_share.id() == *self.node_id.deref() {
-                    let db_read = self
-                        .storage
-                        .read()
-                        .map_err(|e| -> SecretServerError { e.into() })?;
-                    let old_share = db_read.get(&client_id).ok_or(SecretServerError::NotFound)?;
+                    let old_share;
+                    {
+                        let storage = self.storage.read().unwrap();
+                        old_share = storage
+                            .get(&client_id)
+                            .ok_or(SecretServerError::NotFound)?
+                            .clone();
+                    }
                     let new_share_to_store =
                         RenewableShare::renew_with_share(&new_share, &old_share.share);
-                    let mut db = self
-                        .storage
+                    self.storage
                         .write()
-                        .map_err(|e| -> SecretServerError { e.into() })?;
-                    db.insert(
-                        client_id,
-                        ShareMeta::new(new_share_to_store, old_share.meta.clone()),
-                    );
+                        .map_err(|e| -> SecretServerError { e.into() })
+                        .unwrap()
+                        .insert(
+                            client_id,
+                            ShareMeta::new(new_share_to_store, old_share.meta.clone()),
+                        );
                 }
                 serialize(&Message::Refresh {
                     client_id,

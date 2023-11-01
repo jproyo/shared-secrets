@@ -44,7 +44,7 @@ pub struct Share {
 
 impl Debug for Share {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Share {{ x: {}, ys: **** }}", self.x)
+        write!(f, "Share {{ x: {}, ys: {:?} }}", self.x, self.ys)
     }
 }
 

@@ -53,20 +53,35 @@ async fn send_secret(
         .map(|x| (x.id, x.addr.clone()))
         .collect();
 
+    println!("Map {:?}", map);
+    println!("Shares {:?}", shares_vec);
+
     let client = reqwest::Client::new();
 
     for s in shares_vec {
-        client
+        println!(
+            "Sending share to server {:?} - {:?}",
+            s,
+            map.get(&s.share.id()).unwrap()
+        );
+        let result = client
             .post(format!(
                 "http://{}/{}/secret",
                 map.get(&s.share.id()).unwrap(),
                 settings.client_id
             ))
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", settings.api_key))
             .json(&s)
             .send()
-            .await
-            .map(|_| ())
-            .unwrap();
+            .await?;
+        match result.status() {
+            reqwest::StatusCode::OK => {}
+            _ => {
+                eprintln!("Error sending share to server {:?}", result);
+                return Err(Box::new(result.error_for_status().unwrap_err()));
+            }
+        }
     }
     Ok(())
 }
@@ -85,10 +100,12 @@ async fn get_secret(settings: &Settings) -> Result<(), Box<dyn std::error::Error
     for i in 1..=settings.shares_required {
         let share = client
             .get(format!(
-                "http://{}/{}/secret",
+                "http://{}/{}/share",
                 map.get(&i).unwrap(),
                 settings.client_id,
             ))
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", settings.api_key))
             .send()
             .await?
             .json::<Share>()
