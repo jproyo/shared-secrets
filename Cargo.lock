@@ -2011,6 +2011,7 @@ dependencies = [
  "bincode",
  "config",
  "log",
+ "reqwest",
  "riteraft",
  "serde",
  "slog",

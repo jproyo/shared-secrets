@@ -1,0 +1,26 @@
+[tasks.start-servers]
+command = "docker-compose"
+args = ["-f", "tests/docker/docker-compose.yaml", "up", "-d"]
+
+[tasks.stop-servers]
+command = "docker-compose"
+args = ["-f", "tests/docker/docker-compose.yaml", "down"]
+
+[tasks.sleep]
+command = "sleep"
+args = ["5"]
+dependencies = ["start-servers"]
+
+[tasks.test-int]
+command = "cargo"
+args = ["test", "--tests"]
+dependencies = ["sleep"]
+
+[tasks.testis]
+description = "Run integration tests with docker-compose"
+run_task = { name = ["test-int"], fork = true, cleanup_task = "stop-servers" }
+
+
+
+
+

@@ -54,9 +54,6 @@ async fn send_secret(
         .map(|x| (x.id, x.addr.clone()))
         .collect();
 
-    println!("Map {:?}", map);
-    println!("Shares {:?}", shares_vec);
-
     let mut tasks = JoinSet::new();
     for s in shares_vec {
         let client_id = settings.client_id.clone();
@@ -68,9 +65,8 @@ async fn send_secret(
         );
         tasks.spawn(async move {
             let client = reqwest::Client::new();
-            println!("Sending share to server {:?} - {:?}", s, url);
             let result = client
-                .post(url)
+                .post(url.clone())
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {}", api_key))
                 .json(&s)
@@ -78,18 +74,23 @@ async fn send_secret(
                 .await?;
             match result.status() {
                 reqwest::StatusCode::OK => {
-                    println!("Share sent to server {:?}", result);
+                    println!("Share sent to server {:?}", url);
                     Ok(())
                 }
                 _ => {
-                    eprintln!("Error sending share to server {:?}", result);
+                    eprintln!("Error sending share to server {:?}", url);
                     return Err(Box::new(result.error_for_status().unwrap_err()));
                 }
             }
         });
     }
     while let Some(res) = tasks.join_next().await {
-        let _ = res.unwrap();
+        match res {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{:?}", e);
+            }
+        }
     }
 
     Ok(())
@@ -146,9 +147,17 @@ async fn get_secret(settings: &Settings) -> Result<(), Box<dyn std::error::Error
     } else {
         let raw_secret: Vec<Vec<u8>> = shares.into_iter().map(|s| s.into()).collect::<Vec<_>>();
 
-        let secret = reconstruct(raw_secret, false)?;
+        let secret = reconstruct(raw_secret, false);
 
-        println!("SECRET ===> {}", String::from_utf8(secret).unwrap());
+        match secret {
+            Err(_) => {
+                eprintln!("Error reconstructing secret");
+                return Ok(());
+            }
+            Ok(secret) => {
+                println!("SECRET ===> {}", String::from_utf8(secret).unwrap());
+            }
+        };
     }
 
     Ok(())

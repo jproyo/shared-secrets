@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  server-1:
+    container_name: server-1
+    image: shared-secret-server:latest
+    volumes:
+      - ../config/server-1.toml:/app/config/default.toml
+    env_file:
+      - ../config/.env.test
+    build:
+      context: ../../../
+      dockerfile: server/operations/docker/Dockerfile
+    ports:
+      - "8000:8080"
+  server-2:
+    container_name: server-2
+    image: shared-secret-server:latest
+    depends_on:
+      server-1:
+        condition: service_started
+    volumes:
+      - ../config/server-2.toml:/app/config/default.toml
+    env_file:
+      - ../config/.env.test
+    build:
+      context: ../../../
+      dockerfile: server/operations/docker/Dockerfile
+    ports:
+      - "8001:8080"
+  server-3:
+    container_name: server-3
+    image: shared-secret-server:latest
+    depends_on:
+      server-1:
+        condition: service_started
+    volumes:
+      - ../config/server-3.toml:/app/config/default.toml
+    env_file:
+      - ../config/.env.test
+    build:
+      context: ../../../
+      dockerfile: server/operations/docker/Dockerfile
+    ports:
+      - "8002:8080"
