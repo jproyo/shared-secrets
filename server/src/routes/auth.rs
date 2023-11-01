@@ -1,3 +1,10 @@
+use actix_web::dev::ServiceRequest;
+use actix_web::error::{ErrorInternalServerError, ErrorUnauthorized};
+use actix_web::{web, Error};
+use actix_web_httpauth::extractors::bearer::BearerAuth;
+
+use super::context::AppContext;
+
 /// Validator function for validating bearer token.
 ///
 /// This function is used as a middleware to validate the bearer token

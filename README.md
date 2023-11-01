@@ -22,17 +22,21 @@ In this section, I will explore a minimalistic implementation of a Distributed S
 
 ## Preliminaries
 
-You can build and run it directly with `Cargo`.
-
 ### Rust requirements
 
 - **Cargo**: `cargo 1.72+`.
 - **Rustc**: `rustc 1.72+`.
-- **Cargo Make**: `cargo make`
+- **Cargo Make**: `cargo make 0.37+`
 
 ### Docker requirements
 
-- Ensure you have both the Docker Server and Client version 24+ installed.
+- **Docker**: `24+`
+- **Docker Compose**: `2.21+`
+
+### System requirements
+
+- **Protobuf Compiler**: `3.21+`
+> This is needed because there is a dependency with `riteraft` crate which requires protobuf binaries
 
 ---
 
@@ -46,15 +50,11 @@ To build the project, run the following commands:
 > cargo build
 ```
 
-### Building with Docker
-
-```shell
-> docker build -t payments .
-```
-
 ---
 
 ## Running the Program
+The solution contains 2 binaries *Client* and *Server*
+
 The main program reads data from a **CSV** file and writes the results to **stdout**.
 
 To test the program with a substantial **CSV** file, you will need to either generate one or have it available in your local environment. The examples under the `data` folder and `tests/data` folder are simple and do not represent real-world scenarios.
