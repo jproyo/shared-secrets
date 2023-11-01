@@ -65,6 +65,10 @@ impl Share {
     pub fn id(&self) -> u8 {
         self.x
     }
+
+    pub fn ys_len(&self) -> usize {
+        self.ys.len()
+    }
 }
 
 impl RenewableShare {
@@ -89,6 +93,13 @@ impl RenewableShare {
             .ys
             .iter_mut()
             .for_each(|y| *y = *(Coeff(*y) + Coeff(self.poly.get_y_value(share.x))));
+    }
+
+    pub fn get_share(&self, x: u8, ys_len: usize) -> Share {
+        let ys = (0..ys_len)
+            .map(|_| self.poly.get_y_value(x))
+            .collect::<Vec<_>>();
+        Share::new(x, ys)
     }
 
     pub fn renew_with_share(new_share: &Share, share: &Share) -> Share {

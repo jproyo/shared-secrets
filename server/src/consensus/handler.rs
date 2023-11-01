@@ -53,4 +53,47 @@ impl ConsensusHandler {
         let _ = self.mailbox.send(message).await?;
         Ok(())
     }
+
+    pub async fn refresh_secrets(&self) -> Result<(), SecretServerError> {
+        let messages = self
+            .storage
+            .storage()
+            .read()?
+            .iter()
+            .map(|(id, share)| {
+                let poly =
+                    share.renew_poly(id.shares_required(), id.shares_to_create(), id.sec_len());
+                let r = (0..id.shares_to_create())
+                    .map(move |i| {
+                        let share = poly.get_share(i + 1, share.ys_len());
+                        Message::Refresh {
+                            client_id: id.clone(),
+                            new_share: share,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                r
+            })
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        info!(
+            "Sending refresh messages to the rest of the participants in the network {:?}",
+            messages.len()
+        );
+        for message in messages {
+            let message = serialize(&message)?;
+            let _ = self.mailbox.send(message).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn finish_refresh(&self) -> Result<(), SecretServerError> {
+        info!("Sending finish refresh message to the rest of the participants in the network");
+        let message = serialize(&Message::FinishRefresh {
+            node_id: self.storage.node_id(),
+        })?;
+        let _ = self.mailbox.send(message).await?;
+        Ok(())
+    }
 }

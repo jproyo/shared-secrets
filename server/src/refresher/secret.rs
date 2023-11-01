@@ -12,7 +12,9 @@ async fn refresh_secret(consensus_handler: ConsensusHandler) -> Result<(), Secre
         return Ok(());
     }
     info!("Refreshing all secrets share with new random polynomial coefficients");
-    consensus_handler.start_refresh().await
+    consensus_handler.start_refresh().await?;
+    consensus_handler.refresh_secrets().await?;
+    consensus_handler.finish_refresh().await
 }
 
 pub async fn run(interval_secs: u64, consensus_handler: ConsensusHandler) {

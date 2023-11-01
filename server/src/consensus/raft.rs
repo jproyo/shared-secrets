@@ -55,6 +55,10 @@ impl HashStore {
     pub fn node_id(&self) -> NodeId {
         self.node_id
     }
+
+    pub fn storage(&self) -> Arc<RwLock<HashMap<ClientId, Share>>> {
+        self.storage.clone()
+    }
 }
 
 #[async_trait]
