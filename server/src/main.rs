@@ -67,7 +67,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let level = slog::LevelFilter::new(drain, slog::Level::Info).fuse();
-    let drain = slog_async::Async::new(level).build().fuse();
+    let drain = slog_async::Async::new(level).chan_size(2048).build().fuse();
     let logger = slog::Logger::root(drain, slog_o!());
 
     let _scope_guard = slog_scope::set_global_logger(logger.clone());

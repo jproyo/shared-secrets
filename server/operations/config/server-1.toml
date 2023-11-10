@@ -2,6 +2,6 @@ raft_addr = "server-1:7070"
 web_server = "server-1:8080"
 node_id = "1"
 # api_key =
-interval_refresh_secs = 60
+interval_refresh_secs = 10
 
 
