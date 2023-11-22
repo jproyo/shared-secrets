@@ -50,7 +50,7 @@ async fn leave(data: web::Data<AppContext>) -> impl Responder {
 
 pub async fn run(settings: &Settings, consensus_handler: ConsensusHandler) -> io::Result<Server> {
     let api_key = settings.api_key().to_string();
-    let web_server = settings.web_server();
+    let http_port = settings.http_port();
     Ok(HttpServer::new(move || {
         let app_context = AppContext::new(consensus_handler.clone(), &api_key);
         let auth_middleware = HttpAuthentication::bearer(validator);
@@ -62,6 +62,6 @@ pub async fn run(settings: &Settings, consensus_handler: ConsensusHandler) -> io
             .service(get_share)
             .service(leave)
     })
-    .bind(web_server)?
+    .bind(("0.0.0.0", http_port))?
     .run())
 }

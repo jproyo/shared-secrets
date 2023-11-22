@@ -53,8 +53,8 @@ fn print_wellcome(options: &Settings) {
     info!("{}", str_log_wellcome);
     info!("\n\n ---- Starting Node Id {} ----- \n", options.node_id());
     info!(
-        "\n\n ---- Starting API Server on {} ----- \n",
-        options.web_server()
+        "\n\n ---- Starting API Server listening on {} ----- \n",
+        options.http_port()
     );
     info!(
         "\n\n ---- Starting Consensus Server on {} ----- \n",

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     raft_addr: String,
     peer_addr: Option<String>,
-    web_server: String,
+    http_port: u16,
     node_id: u8,
     api_key: String,
     interval_refresh_secs: u64,
@@ -43,8 +43,8 @@ impl Settings {
     }
 
     /// Returns the web server address.
-    pub fn web_server(&self) -> &str {
-        &self.web_server
+    pub fn http_port(&self) -> u16 {
+        self.http_port
     }
 
     /// Returns the node ID.

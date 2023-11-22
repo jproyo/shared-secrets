@@ -1,6 +1,6 @@
 raft_addr = "server-2:7070"
 peer_addr = "server-1:7070"
-web_server = "server-2:8080"
+http_port = 8080
 node_id = "2"
 # api_key =
 interval_refresh_secs = 5
