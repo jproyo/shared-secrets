@@ -55,6 +55,6 @@ jobs:
           build-args: ${{ inputs.build-args }}
           file: ${{ inputs.docker-file-path }}
           push: true
-          tags: europe-docker.pkg.dev/${{ secrets.GKE_PROJECT_ID }}/default/${{inputs.docker-image-name}}:${{env.DOCKER_TAG_IMAGE}}
+          tags: europe-west4-docker.pkg.dev/${{ secrets.GKE_PROJECT_ID}}/default/${{inputs.docker-image-name}}:${{env.DOCKER_TAG_IMAGE}}
 
 
