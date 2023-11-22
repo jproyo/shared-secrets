@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: server-leader-service
+spec:
+  selector:
+    app: server-leader-app
+  ports:
+    - port: 7070
+      protocol: TCP
+      targetPort: raft-lead-p
+      name: raft
+    - port: 8080
+      protocol: TCP
+      targetPort: http-lead-p
+      name: http

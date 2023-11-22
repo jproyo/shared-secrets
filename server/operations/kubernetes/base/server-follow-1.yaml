@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-follow-1-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: server-follow-1-app
+  template:
+    metadata:
+      labels:
+        app: server-follow-1-app
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      containers:
+        - name: server-follow-1-app
+          image: ghcr.io/jproyo/secret-shared-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7071
+              name: raft-fol-1-p
+            - containerPort: 8080
+              name: http-fol-1-p
+
+          livenessProbe:
+              failureThreshold: 5
+              httpGet:
+                path: /healthz
+                port: http-fol-1-p
+              initialDelaySeconds: 30
+              timeoutSeconds: 10
+              periodSeconds: 15
+
+          envFrom:
+            - configMapRef:
+                name: server-envs
+
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_ID
+              value: "2"
+            - name: RAFT_ADDR
+              value: "$(MY_POD_IP):7071"
+            - name: PEER_ADDR
+              value: "server-leader-service.dev.svc.cluster.local:7070"
+            - name: HTTP_PORT
+              value: "8080"
+            - name: INTERVAL_REFRESH_SECS
+              value: "5"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                    name: api-key-server-secret
+                    key: api-key
+          volumeMounts:
+            - name: server-toml
+              mountPath: /app/config/default.toml
+              subPath: default.toml
+      initContainers:
+        - name: init-leader
+          image: busybox:1.28
+          command: ['sh', '-c', "until nslookup server-leader-service.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for leader; sleep 2; done"]
+
+      volumes:
+        - name: server-toml
+          configMap:
+            name: server-toml

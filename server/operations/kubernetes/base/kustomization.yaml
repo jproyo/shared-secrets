@@ -1,0 +1,9 @@
+resources:
+- server-toml.yaml
+- server-config.yaml
+- server-leader.yaml
+- server-leader-service.yaml
+- server-follow-1.yaml
+- server-follow-1-service.yaml
+- server-follow-2.yaml
+- server-follow-2-service.yaml

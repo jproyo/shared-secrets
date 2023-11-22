@@ -49,7 +49,8 @@ async fn refresh_secret(consensus_handler: ConsensusHandler) -> Result<(), Secre
 /// * `interval_secs` - The interval in seconds between each secret refresh task.
 /// * `consensus_handler` - The consensus handler used for secret refreshing.
 pub async fn run(interval_secs: u64, consensus_handler: ConsensusHandler) {
-    let mut start_time = Instant::now() + Duration::from_secs(10);
+    let mut start_time =
+        Instant::now() + Duration::from_secs(interval_secs) + Duration::from_secs(20);
 
     info!(
         "Starting secret refresher task with interval {} seconds",

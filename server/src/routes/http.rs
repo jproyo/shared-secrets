@@ -42,9 +42,8 @@ async fn get_share(
     Ok(web::Json(result.map(|share| share.share.clone())))
 }
 
-#[get("/leave")]
-async fn leave(data: web::Data<AppContext>) -> impl Responder {
-    data.consensus_handler().leave().await.unwrap();
+#[get("/healthz")]
+async fn healthz() -> impl Responder {
     "OK".to_string()
 }
 
@@ -57,10 +56,13 @@ pub async fn run(settings: &Settings, consensus_handler: ConsensusHandler) -> io
         App::new()
             .app_data(web::Data::new(app_context))
             .wrap(actix_web::middleware::Logger::default())
-            .wrap(auth_middleware)
-            .service(create_share)
-            .service(get_share)
-            .service(leave)
+            .service(healthz)
+            .service(
+                web::scope("/api")
+                    .wrap(auth_middleware)
+                    .service(create_share)
+                    .service(get_share),
+            )
     })
     .bind(("0.0.0.0", http_port))?
     .run())

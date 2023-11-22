@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: server-toml
+data:
+  default.toml: |
+    raft_addr = "127.0.0.1:7070"
+    http_port = 8080
+    node_id = "1"
+    interval_refresh_secs = 5
+

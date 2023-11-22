@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-leader-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: server-leader-app
+  template:
+    metadata:
+      labels:
+        app: server-leader-app
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      containers:
+        - name: server-leader-app
+          image: ghcr.io/jproyo/secret-shared-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7070
+              name: raft-lead-p
+            - containerPort: 8080
+              name: http-lead-p
+          livenessProbe:
+              failureThreshold: 5
+              httpGet:
+                path: /healthz
+                port: http-lead-p
+              initialDelaySeconds: 30
+              timeoutSeconds: 10
+              periodSeconds: 15
+
+          envFrom:
+            - configMapRef:
+                name: server-envs
+
+          env:
+            - name: NODE_ID
+              value: "1"
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RAFT_ADDR
+              value: "0.0.0.0:7070"
+            - name: HTTP_PORT
+              value: "8080"
+            - name: INTERVAL_REFRESH_SECS
+              value: "2"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                    name: api-key-server-secret
+                    key: api-key
+          volumeMounts:
+            - name: server-toml
+              mountPath: /app/config/default.toml
+              subPath: default.toml
+      volumes:
+        - name: server-toml
+          configMap:
+            name: server-toml
