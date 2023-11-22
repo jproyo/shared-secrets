@@ -6,7 +6,7 @@ spec:
   selector:
     app: server-follow-1-app
   ports:
-    - port: 8081
+    - port: 8080
       protocol: TCP
       targetPort: http-fol-1-p
       name: http

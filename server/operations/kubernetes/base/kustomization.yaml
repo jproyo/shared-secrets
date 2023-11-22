@@ -7,3 +7,4 @@ resources:
 - server-follow-1-service.yaml
 - server-follow-2.yaml
 - server-follow-2-service.yaml
+- ingress.yaml

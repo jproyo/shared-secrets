@@ -20,7 +20,21 @@ dependencies = ["sleep"]
 description = "Run integration tests with docker-compose"
 run_task = { name = ["test-int"], fork = true, cleanup_task = "stop-servers" }
 
+[tasks.setup-local-kind]
+command = "kind"
+args = ["create", "cluster", "--name", "kind", "--config", "operations/kubernetes/local/kind-config.yaml"]
 
+[tasks.setup-local-kind-ingress]
+command = "kubectl"
+args = ["apply", "-f", "https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml"]
+
+[tasks.setup-local-kind-namespace]
+command = "kubectl"
+args = ["create", "namespace", "dev"]
+
+[tasks.setup-local-kind-api-key]
+command = "kubectl"
+args = ["create", "secret", "-n", "dev", "generic", "api-key-server-secret", "--from-literal", "api-key=1234"]
 
 
 
