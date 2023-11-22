@@ -41,7 +41,7 @@ jobs:
           credentials: ${{ secrets.GKE_SA_KEY }}
           project_id: ${{ secrets.GKE_PROJECT_ID }}
       - run: |-
-          gcloud --quiet auth configure-docker
+          gcloud --quiet auth configure-docker europe-west4-docker.pkg.dev/${{ secrets.GKE_PROJECT_ID}}/default
       - name: Current branch sha
         if: github.event_name != 'release'
         run: |
