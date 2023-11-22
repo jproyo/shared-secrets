@@ -67,6 +67,6 @@ jobs:
         run: |
           mkdir -p kube-target
           kustomize build ${{inputs.overlays-folder}}/${{env.NAMESPACE}} -o kube-target/${{inputs.manifest-file}}
-          kustomize apply -f kube-target/${{inputs.manifest-file}}
+          kubectl apply -f kube-target/${{inputs.manifest-file}}
 
 
