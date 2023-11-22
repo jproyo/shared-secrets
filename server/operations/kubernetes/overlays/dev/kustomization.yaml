@@ -1,7 +1,11 @@
 resources:
 - ../../base
+- backend-config.yaml
 
 namespace: dev
 
 patchesStrategicMerge:
 - ingress.yaml
+- server-leader-service.yaml
+- server-follow-1-service.yaml
+- server-follow-2-service.yaml
