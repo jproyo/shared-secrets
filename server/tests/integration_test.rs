@@ -28,7 +28,7 @@ async fn create_shares(
         let client_id = client_id.clone();
         let api_key = api_key.clone();
         let url = format!(
-            "http://{}/{}/secret",
+            "http://{}/api/{}/secret",
             servers.get(&s.share.id()).unwrap(),
             client_id
         );
@@ -68,7 +68,7 @@ async fn get_secret(
     let mut shares_count = 0;
     for (_, v) in &servers {
         let share = client
-            .get(format!("http://{}/{}/share", v, client_id))
+            .get(format!("http://{}/api/{}/share", v, client_id))
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
