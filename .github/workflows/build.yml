@@ -15,9 +15,8 @@ jobs:
     uses: ./.github/workflows/build-docker.yml
     secrets: inherit
     with:
-      module-path: server
       docker-image-name: secret-shared-server
-      docker-file-path: operations/docker/Dockerfile
+      docker-file-path: server/operations/docker/Dockerfile
     permissions:
       contents: 'read'
       id-token: 'write'
