@@ -15,7 +15,7 @@ spec:
       imagePullSecrets:
       - name: regcred
       containers:
-        - name: server-leader-app
+        - name: secret-shared-server
           image: ghcr.io/jproyo/secret-shared-server:latest
           imagePullPolicy: IfNotPresent
           ports:

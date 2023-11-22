@@ -16,6 +16,10 @@ on:
         required: false
         type: string
         default: 'operations/kubernetes/overlays'
+      image-name:
+        require: false
+        type: string
+        default: 'secret-shared-server'
 
 jobs:
   kustomize:
@@ -60,7 +64,7 @@ jobs:
           cd ${{inputs.overlays-folder}}/${{env.NAMESPACE}}
           for i in $(echo ${{inputs.docker-image-names}} | sed "s/,/ /g")
           do
-              kustomize edit set image europe-west4-docker.pkg.dev/${{ secrets.GKE_PROJECT_ID}}/default/$i:${{env.DOCKER_TAG_IMAGE}}
+              kustomize edit set image ${{inputs.image-name}}=europe-west4-docker.pkg.dev/${{ secrets.GKE_PROJECT_ID}}/default/$i:${{env.DOCKER_TAG_IMAGE}}
           done
 
       - name: Kustomize Build and Deploy
