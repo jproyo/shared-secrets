@@ -16,7 +16,7 @@ spec:
       - name: regcred
       containers:
         - name: secret-shared-server
-          image: ghcr.io/jproyo/secret-shared-server:latest
+          image: secret-shared-server
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 7070

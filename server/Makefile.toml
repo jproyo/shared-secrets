@@ -36,5 +36,14 @@ args = ["create", "namespace", "dev"]
 command = "kubectl"
 args = ["create", "secret", "-n", "dev", "generic", "api-key-server-secret", "--from-literal", "api-key=1234"]
 
+[tasks.edit-kustomize-local]
+cwd = "operations/kubernetes/dev"
+command = "kustomize"
+args = ["edit", "set", "image", "secret-shared-server=ghcr.io/jproyo/secret-shared-server:latest"]
+
+[tasks.build-kustomize-local]
+command = "kustomize"
+args = ["build", "operations/kubernetes/dev", "-o", "test.yaml"]
+
 
 
