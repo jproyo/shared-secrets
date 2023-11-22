@@ -8,21 +8,21 @@ spec:
   rules:
   - http:
       paths:
-      - pathType: Prefix
+      - pathType: ImplementationSpecific
         path: /server-1(/|$)(.*)
         backend:
           service:
             name: server-leader-service
             port:
               number: 8080
-      - pathType: Prefix
+      - pathType: ImplementationSpecific
         path: /server-2(/|$)(.*)
         backend:
           service:
             name: server-follow-1-service
             port:
               number: 8080
-      - pathType: Prefix
+      - pathType: ImplementationSpecific
         path: /server-3(/|$)(.*)
         backend:
           service:
