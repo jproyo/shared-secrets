@@ -6,15 +6,15 @@ shares_required = 2
 
 [[servers]]
 id = "1"
-addr = "127.0.0.1:8080"
+addr = "http://localhost/server-1"
 
 [[servers]]
 id = "2"
-addr = "127.0.0.1:8181"
+addr = "http://localhost/server-2"
 
 [[servers]]
 id = "3"
-addr = "127.0.0.1:8282"
+addr = "http://localhost/server-3"
 
 
 

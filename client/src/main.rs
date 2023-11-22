@@ -59,7 +59,7 @@ async fn send_secret(
         let client_id = settings.client_id.clone();
         let api_key = settings.api_key.clone();
         let url = format!(
-            "http://{}/api/{}/secret",
+            "{}/api/{}/secret",
             map.get(&s.share.id()).unwrap(),
             client_id
         );
@@ -111,7 +111,7 @@ async fn get_secret(settings: &Settings) -> Result<(), Box<dyn std::error::Error
     'outer: loop {
         for (_, v) in &map {
             let share = client
-                .get(format!("http://{}/api/{}/share", v, settings.client_id,))
+                .get(format!("{}/api/{}/share", v, settings.client_id,))
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {}", settings.api_key))
                 .send()
