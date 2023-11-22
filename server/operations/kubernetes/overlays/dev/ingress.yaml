@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: server-ingress
+spec:
+  rules:
+  - http:
+      paths:
+      - pathType: ImplementationSpecific
+        path: /server-1/*
+        backend:
+          service:
+            name: server-leader-service
+            port:
+              number: 8080
+      - pathType: ImplementationSpecific
+        path: /server-2/*
+        backend:
+          service:
+            name: server-follow-1-service
+            port:
+              number: 8080
+      - pathType: ImplementationSpecific
+        path: /server-3/*
+        backend:
+          service:
+            name: server-follow-2-service
+            port:
+              number: 8080

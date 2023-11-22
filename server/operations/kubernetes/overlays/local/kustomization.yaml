@@ -3,5 +3,3 @@ resources:
 
 namespace: dev
 
-patchesStrategicMerge:
-- ingress.yaml
