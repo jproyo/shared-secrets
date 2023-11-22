@@ -2,28 +2,10 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: server-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
-  rules:
-  - http:
-      paths:
-      - pathType: ImplementationSpecific
-        path: /server-1/*
-        backend:
-          service:
-            name: server-leader-service
-            port:
-              number: 8080
-      - pathType: ImplementationSpecific
-        path: /server-2/*
-        backend:
-          service:
-            name: server-follow-1-service
-            port:
-              number: 8080
-      - pathType: ImplementationSpecific
-        path: /server-3/*
-        backend:
-          service:
-            name: server-follow-2-service
-            port:
-              number: 8080
+  ingressClassName: nginx
+
