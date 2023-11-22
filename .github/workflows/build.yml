@@ -8,6 +8,29 @@ on:
 
 jobs:
   build-rust:
-    uses: ./.github/workflows/common-pipeline.yml
+    uses: ./.github/workflows/build-rust.yml
     secrets: inherit
+  build-docker:
+    needs: build-rust
+    uses: ./.github/workflows/build-docker.yml
+    secrets: inherit
+    with:
+      module-path: server
+      docker-image-name: secret-shared-server
+      docker-file-path: operations/docker/Dockerfile
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+  deploy:
+    needs:
+      - build-docker
+    uses: ./.github/workflows/build-k8s-deploy.yml
+    secrets: inherit
+    with:
+      docker-image-names: "secret-shared-server"
+      overlays-folder: 'server/operations/kubernetes/overlays'
+      manifest-file: deployment.yaml
+      manifest-folder: server
+
+
 

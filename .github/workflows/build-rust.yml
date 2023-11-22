@@ -1,11 +1,10 @@
-name: Build Rust
+name: Rust
 
 on:
   workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
-
 
 jobs:
   build-rust:
@@ -41,4 +40,5 @@ jobs:
           args: --all-features --lib
       - name: Run Integration Tests
         run: cargo make --cwd server tests
+
 

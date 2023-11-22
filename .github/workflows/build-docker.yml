@@ -1,0 +1,65 @@
+name: Docker Build and Push
+
+on:
+  workflow_call:
+    inputs:
+      module-path:
+        required: false
+        type: string
+        default: ''
+      build-args:
+        required: false
+        type: string
+        default: ''
+      docker-file-path:
+        required: false
+        type: string
+        default: 'operations/docker/Dockerfile'
+      docker-image-name:
+        required: true
+        type: string
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      # Setup gcloud CLI
+      - uses: google-github-actions/setup-gcloud@1bee7de035d65ec5da40a31f8589e240eba8fde5
+        with:
+          service_account_key: ${{ secrets.GKE_SA_KEY }}
+          project_id: ${{ secrets.GKE_PROJECT_ID }}
+      # Configure Docker to use the gcloud command-line tool as a credential
+      # helper for authentication
+      - run: |-
+          gcloud --quiet auth configure-docker
+
+      # Get the GKE credentials so we can deploy to the cluster
+      - uses: google-github-actions/get-gke-credentials@db150f2cc60d1716e61922b832eae71d2a45938f
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_ZONE }}
+          credentials: ${{ secrets.GKE_SA_KEY }}
+      - name: Current branch sha
+        if: github.event_name != 'release'
+        run: |
+          echo "DOCKER_TAG_IMAGE=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
+      - name: Current Tag
+        if: github.event_name == 'release'
+        run: |
+          echo "DOCKER_TAG_IMAGE=${{  github.ref_name }}" >> $GITHUB_ENV
+      - name: Docker Build and Push
+        uses: docker/build-push-action@v3
+        with:
+          context: "{{defaultContext}}:${{ inputs.module-path }}"
+          build-args: ${{ inputs.build-args }}
+          file: ${{ inputs.docker-file-path }}
+          push: true
+          tags: europe-docker.pkg.dev/${{ secrets.GKE_PROJECT_ID }}/default/${{inputs.docker-image-name}}:${{env.DOCKER_TAG_IMAGE}}
+
+
