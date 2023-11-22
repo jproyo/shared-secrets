@@ -17,7 +17,7 @@ on:
         type: string
         default: 'operations/kubernetes/overlays'
       image-name:
-        require: false
+        required: false
         type: string
         default: 'secret-shared-server'
 
